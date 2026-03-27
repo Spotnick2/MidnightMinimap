@@ -1,0 +1,8 @@
+## Interface: 20505
+## Title: MidnightMinimap
+## Notes: Applies the Midnight/Dragonflight-style minimap border. Based on DragonflightUI minimap textures by Karl-Heinz Schneider.
+## Author: Custom
+## Version: 1.0.0
+## SavedVariables: MidnightMinimapDB
+
+MidnightMinimap.lua
