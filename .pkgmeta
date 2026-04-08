@@ -1,0 +1,16 @@
+package-as: MidnightMinimap
+
+enable-nolib-creation: no
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+ignore:
+  - .gitignore
+  - .github
+  - docs
+  - screenshots
+  - README.md
+  - CHANGELOG.md
+  - LICENSE
