@@ -1,8 +1,9 @@
-## Interface: 20505
+## Interface: 16001, 20505
 ## Title: MidnightMinimap
-## Notes: Applies the Midnight/Dragonflight-style minimap border. Based on DragonflightUI minimap textures by Karl-Heinz Schneider.
+## Notes: Applies the Midnight/Dragonflight-style minimap border in Forever and TBC Anniversary. Based on DragonflightUI minimap textures by Karl-Heinz Schneider.
 ## Author: Spotnick
 ## Version: @project-version@
 ## SavedVariables: MidnightMinimapDB
 
 MidnightMinimap.lua
+Forever.lua

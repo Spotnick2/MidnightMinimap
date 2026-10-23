@@ -12,5 +12,6 @@ ignore:
   - docs
   - screenshots
   - README.md
+  - tests
+  - dist
   - CHANGELOG.md
-  - LICENSE

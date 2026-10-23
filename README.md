@@ -1,6 +1,6 @@
 # MidnightMinimap
 
-**MidnightMinimap** is a lightweight World of Warcraft Classic addon that replaces the default minimap styling with a Midnight / Dragonflight-inspired minimap frame, while keeping the scope intentionally small and focused.
+**MidnightMinimap** is a lightweight World of Warcraft addon that gives the minimap a Midnight / Dragonflight-inspired look. It supports **TBC Anniversary** and has an **untested-in-game port for World of Warcraft: Forever**.
 
 ## Important attribution
 
@@ -8,59 +8,52 @@
 
 It exists because I wanted the minimap look from **Dragonflight UI Classic** without installing the rest of that UI package.
 
-Original addon:
-[Dragonflight UI Classic](https://www.curseforge.com/wow/addons/dragonflight-ui-classic)
+Original addon: [Dragonflight UI Classic](https://www.curseforge.com/wow/addons/dragonflight-ui-classic)
 
-Credit goes to **Karl-Heinz Schneider** for the original DragonflightUI work and minimap styling/assets this addon is based on.
-
-If you want the full UI experience, please use Dragonflight UI Classic instead.
+Credit goes to **Karl-Heinz Schneider** for the original DragonflightUI work and the minimap styling and assets this addon is based on. If you want the full UI experience, please use Dragonflight UI Classic instead.
 
 ## What the addon does
 
-MidnightMinimap restyles the default minimap into a cleaner Dragonflight-style / Midnight-style presentation for WoW Classic-era clients.
+MidnightMinimap restyles the default minimap with:
 
-It includes:
+- A custom round border and styled header with zone text and an optional clock
+- A restyled tracking button and mail indicator
+- Optional player coordinates
+- Saved visibility choices
 
-- A custom round minimap border and mask
-- Styled minimap header with zone text and optional clock
-- Restyled tracking button
-- Restyled mail icon
-- Mouse wheel zoom support on the minimap
-- Optional player coordinate display
-- Movable minimap frame with lock/unlock support
-- Saved settings for position, scale, and visibility options
+On **TBC Anniversary**, it also applies a custom round mask, supports mouse wheel zoom, and saves the minimap's position and scale. The frame can be moved and locked with mouse shortcuts.
+
+On **Forever**, it keeps Blizzard's round mask, mouse wheel zoom, minimap ping, tracking menu, and calendar controls. The addon draws its border and header around Blizzard's Edit Mode minimap; **Edit Mode manages its position and scale**.
 
 ## Commands
 
-Use either:
+Use `/midnightminimap` or `/mm`.
 
-- `/midnightminimap`
-- `/mm`
+| Command | TBC Anniversary | Forever |
+| --- | --- | --- |
+| `/mm coords` | Toggle coordinates | Toggle coordinates |
+| `/mm header` | Toggle the header | Toggle the header |
+| `/mm clock` | Toggle the clock | Toggle the clock |
+| `/mm zone` | Toggle zone text | Toggle zone text |
+| `/mm reset` | Reset addon settings, position, and scale | Reset addon visibility choices |
+| `/mm lock` | Toggle frame lock | Directs you to Edit Mode |
+| `/mm scale <n>` | Set scale from 0.5 to 3.0 | Directs you to Edit Mode |
 
-Available commands:
-
-- `/mm lock` - Toggle frame lock
-- `/mm scale <n>` - Set scale
-- `/mm coords` - Toggle coordinates
-- `/mm header` - Toggle the header
-- `/mm clock` - Toggle the clock
-- `/mm zone` - Toggle zone text
-- `/mm reset` - Reset settings to defaults
+On both clients, `/mm coord` and `/mm xy` also toggle coordinates.
 
 ## Moving the minimap
 
-- **Shift + Drag** to move the minimap
-- **Shift + Right-Click** to lock or unlock it
+- **TBC Anniversary:** Shift + Drag to move the minimap. Shift + Right-Click to lock or unlock it.
+- **Forever:** Use Blizzard's Edit Mode to move or scale the minimap. The addon follows the Edit Mode minimap.
 
 ## Scope
 
-This addon is intentionally focused on the minimap only.
-It does **not** aim to recreate the entire Dragonflight UI Classic addon.
-Its goal is simply to provide the minimap style in a smaller standalone package.
+This addon is intentionally focused on the minimap. It does not aim to recreate the entire Dragonflight UI Classic addon.
 
 ## Compatibility
 
-Designed for **WoW Classic / TBC Anniversary-style clients**.
+- **TBC Anniversary:** Interface 20505.
+- **World of Warcraft: Forever:** Interface 16001. The Forever port was checked against Blizzard's 1.60.1.70450 UI source and passed Lua 5.1 syntax and offline startup checks. **It has not been tested in game because the beta ended.**
 
 ## Credits
 

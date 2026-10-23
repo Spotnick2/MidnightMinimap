@@ -6,6 +6,10 @@
 ----------------------------------------------------------------------
 
 local addonName = ...
+-- Forever uses a Retail-style Edit Mode minimap. Its implementation is loaded
+-- from Forever.lua so this Classic path never reparents that protected system.
+local interface = select(4, GetBuildInfo())
+if interface >= 16000 and interface < 17000 then return end
 local TEXPATH = "Interface\\AddOns\\MidnightMinimap\\Textures\\"
 local ATLAS  = TEXPATH .. "uiminimap2x"
 local MASK   = TEXPATH .. "tempportraitalphamask"
