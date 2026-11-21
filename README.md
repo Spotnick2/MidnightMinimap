@@ -23,7 +23,7 @@ MidnightMinimap restyles the default minimap with:
 
 On **TBC Anniversary**, it also applies a custom round mask, supports mouse wheel zoom, and saves the minimap's position and scale. The frame can be moved and locked with mouse shortcuts.
 
-On **Forever**, it keeps Blizzard's round mask, mouse wheel zoom, minimap ping, tracking menu, and calendar controls. The addon draws its border and header around Blizzard's Edit Mode minimap; **Edit Mode manages its position and scale**. Its border, coordinates and mail indicator hang from the minimap's container, not from the minimap itself, so an addon that briefly moves the minimap (NodeRadar's scan mode) doesn't take them along.
+On **Forever**, it keeps Blizzard's round mask, mouse wheel zoom, minimap ping, tracking menu, and calendar controls. The addon draws its border and header around Blizzard's Edit Mode minimap; **Edit Mode manages its position and scale**. Forever's day/night disc is hidden, since it sits on the border: `/mm daycycle` brings it back. Its border, coordinates and mail indicator hang from the minimap's container, not from the minimap itself, so an addon that briefly moves the minimap (NodeRadar's scan mode) doesn't take them along.
 
 ## Commands
 
@@ -35,6 +35,7 @@ Use `/midnightminimap` or `/mm`.
 | `/mm header` | Toggle the header | Toggle the header |
 | `/mm clock` | Toggle the clock | Toggle the clock |
 | `/mm zone` | Toggle zone text | Toggle zone text |
+| `/mm daycycle` | (none) | Show or hide Blizzard's day/night disc |
 | `/mm reset` | Reset addon settings, position, and scale | Reset addon visibility choices |
 | `/mm lock` | Toggle frame lock | Directs you to Edit Mode |
 | `/mm scale <n>` | Set scale from 0.5 to 3.0 | Directs you to Edit Mode |

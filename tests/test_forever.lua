@@ -109,10 +109,44 @@ SetCVar("minimapShowPlayerCoords", "1")
 eq(coords:IsShown(), true, "coordinates follow Blizzard's setting")
 eq(liveTickers(), 1, "the coordinates ticker back")
 
+-- Blizzard's pieces next to ours (#5). Nothing under Tracking shows: its
+-- Background and its button are all it has.
+local c = MinimapCluster
+eq(c.Tracking.Background:GetAlpha(), 0, "the tracking background faded")
+eq(c.Tracking.Button:GetAlpha(), 0, "Blizzard's tracking button faded")
+eq(c.Tracking.Button:IsMouseEnabled(), false, "Blizzard's invisible tracking button takes no clicks")
+-- The calendar stays, over our header like the clock.
+local headerLevel = MidnightMinimapForeverHeader:GetFrameLevel()
+eq(GameTimeFrame:GetAlpha(), 1, "Blizzard's calendar kept")
+check(GameTimeFrame:GetFrameLevel() > headerLevel, "the calendar over our header")
+check(TimeManagerClockButton:GetFrameLevel() > headerLevel, "the clock over our header")
+-- The day/night disc is hidden by default, and stays hidden when Blizzard shows it.
+local diel = c.DielFrame
+eq(diel:GetAlpha(), 0, "the day/night disc hidden by default")
+diel:Show(); diel:SetAlpha(1)
+eq(diel:GetAlpha(), 0, "the day/night disc stays hidden through Blizzard's Show and SetAlpha")
+SlashCmdList.MIDNIGHTMINIMAP("daycycle")
+eq(MidnightMinimapDB.showDayCycle, true, "/mm daycycle saves the choice")
+eq(diel:GetAlpha(), 1, "/mm daycycle shows the disc")
+eq(diel:IsMouseEnabled(), false, "the disc's mouse as Blizzard had it")
+check(lastPrint():find("shown", 1, true), "/mm daycycle reports it: " .. tostring(lastPrint()))
+diel:SetAlpha(0.5)
+eq(diel:GetAlpha(), 0.5, "a shown disc is Blizzard's again (the hooks idle)")
+SlashCmdList.MIDNIGHTMINIMAP("daynight")
+eq(diel:GetAlpha(), 0, "/mm daynight hides it again")
+eq(WoW.hooked[diel].Show, 1, "hidden again without a second set of hooks")
+SlashCmdList.MIDNIGHTMINIMAP("daycycle")
+
 SlashCmdList.MIDNIGHTMINIMAP("header")
 eq(MidnightMinimapDB.hideHeader, true, "/mm header")
 SlashCmdList.MIDNIGHTMINIMAP("reset")
 eq(MidnightMinimapDB.hideHeader, false, "/mm reset restores the defaults")
+eq(MidnightMinimapDB.showDayCycle, false, "/mm reset hides the day/night disc")
+eq(diel:GetAlpha(), 0, "/mm reset fades the disc again")
 check(WoW.cvars.minimapShowPlayerCoords == true and coords:IsShown(), "/mm reset leaves Blizzard's coordinates setting")
+
+-- A saved choice shows the disc from the login on.
+loadAddon({ showDayCycle = true })
+eq(MinimapCluster.DielFrame:GetAlpha(), 1, "the day/night disc shown at login when chosen")
 
 done("test_forever")
