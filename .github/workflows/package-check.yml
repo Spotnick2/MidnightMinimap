@@ -56,14 +56,22 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua5.1
 
-      - name: Syntax check
-        run: luac5.1 -p *.lua tests/*.lua
-
-      - name: Forever startup smoke test
-        run: lua5.1 tests/test_forever.lua
-
-      - name: TOC test
-        run: lua5.1 tests/test_toc.lua
+      # Every tests/test_*.lua the checked-out tree has. A manual run checks out
+      # the tag it publishes again, whose tests may be older (v1.1.0 has only
+      # test_forever.lua): those run as they are. Every other run needs the
+      # TOC test too (Codex, #9).
+      - name: Unit tests
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          luac5.1 -p *.lua tests/*.lua
+          if [ "$EVENT" != workflow_dispatch ]; then
+            test -f tests/test_toc.lua || { echo "tests/test_toc.lua is missing"; exit 1; }
+          fi
+          for f in tests/test_*.lua; do
+            echo "-- $f"
+            lua5.1 "$f"
+          done
 
       # On a manual run GITHUB_REF is main, and the packager names the build
       # after whichever tag at HEAD it sorts first (release.sh 613-628 prefers
