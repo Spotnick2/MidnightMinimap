@@ -23,7 +23,7 @@ MidnightMinimap restyles the default minimap with:
 
 On **TBC Anniversary**, it also applies a custom round mask, supports mouse wheel zoom, and saves the minimap's position and scale. The frame can be moved and locked with mouse shortcuts.
 
-On **Forever**, it keeps Blizzard's round mask, mouse wheel zoom, minimap ping, tracking menu, and calendar controls. The addon draws its border and header around Blizzard's Edit Mode minimap; **Edit Mode manages its position and scale**.
+On **Forever**, it keeps Blizzard's round mask, mouse wheel zoom, minimap ping, tracking menu, and calendar controls. The addon draws its border and header around Blizzard's Edit Mode minimap; **Edit Mode manages its position and scale**. Its border, coordinates and mail indicator hang from the minimap's container, not from the minimap itself, so an addon that briefly moves the minimap (NodeRadar's scan mode) doesn't take them along.
 
 ## Commands
 
@@ -31,7 +31,7 @@ Use `/midnightminimap` or `/mm`.
 
 | Command | TBC Anniversary | Forever |
 | --- | --- | --- |
-| `/mm coords` | Toggle coordinates | Toggle coordinates |
+| `/mm coords` | Toggle coordinates | Toggle Blizzard's Player Minimap Coordinates setting |
 | `/mm header` | Toggle the header | Toggle the header |
 | `/mm clock` | Toggle the clock | Toggle the clock |
 | `/mm zone` | Toggle zone text | Toggle zone text |
@@ -40,6 +40,8 @@ Use `/midnightminimap` or `/mm`.
 | `/mm scale <n>` | Set scale from 0.5 to 3.0 | Directs you to Edit Mode |
 
 On both clients, `/mm coord` and `/mm xy` also toggle coordinates.
+
+On Forever, the coordinates follow Blizzard's own settings in Options > Interface: **Player Minimap Coordinates** shows them and **Coordinates by Tenths** sets their precision. The addon shows them in its own style in place of Blizzard's text, so there is one readout and one setting.
 
 ## Moving the minimap
 
