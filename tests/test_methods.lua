@@ -10,7 +10,7 @@ loadAddon({ showCoords = true }, { before = function()
 end })
 WoW.fireAllRegistered()
 WoW.advance(2)                                 -- the coordinates ticker
-for _, cmd in ipairs({ "header", "header", "clock", "clock", "zone", "zone", "coords", "coords",
+for _, cmd in ipairs({ "header", "header", "clock", "clock", "zone", "zone", "daycycle", "daycycle", "coords", "coords",
                        "reset", "lock", "scale", "" }) do
     SlashCmdList.MIDNIGHTMINIMAP(cmd)
 end

@@ -46,6 +46,20 @@ local function buildCluster()
     MinimapCompassTexture = MinimapBackdrop:CreateTexture(nil, "OVERLAY")
     MinimapCompassTextureUnderlay = MinimapBackdrop:CreateTexture(nil, "OVERLAY")
     c.MinimapContainer.PlayerCoords = CreateFrame("Frame", nil, c.MinimapContainer)
+    -- The day/night disc (Camelot\Diel.lua): a container child at level 5,
+    -- its Background and Border textures; it doesn't take the mouse.
+    c.DielFrame = CreateFrame("Frame", nil, c.MinimapContainer)
+    c.DielFrame._level = 5
+    c.DielFrame._points = { { "CENTER", nil, nil, 55, 86 } }
+    c.DielFrame.Background = c.DielFrame:CreateTexture(nil, "BACKGROUND")
+    c.DielFrame:CreateTexture(nil, "OVERLAY")
+    -- The calendar button (GameTime.xml): MinimapCluster's, anchored to the
+    -- zone header's TOPRIGHT (Camelot\GameTimeFrameTemplate.xml).
+    GameTimeFrame = CreateFrame("Button", "GameTimeFrame", c)
+    GameTimeFrame._mouse = true
+    GameTimeFrame._points = { { "TOPLEFT", c.ZoneTextButton, "TOPRIGHT", -4, 0 } }
+    -- No InstanceDifficulty: Forever builds none since 70425
+    -- (Camelot\MinimapInstanceDifficulty.lua).
     -- The mail icon: a mouse-enabled frame in IndicatorFrame, shown by
     -- Blizzard on UPDATE_PENDING_MAIL while there's mail.
     c.IndicatorFrame = CreateFrame("Frame", nil, c)
