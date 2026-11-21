@@ -49,6 +49,22 @@ for _, name in ipairs({ "MidnightMinimapForeverBorder", "MidnightMinimapForeverH
 end
 check(SlashCmdList.MIDNIGHTMINIMAP ~= nil, "the /mm handler")
 
+-- Blizzard's minimap is left to Blizzard: the login never reparents, moves,
+-- sizes, scales, shows, hides or masks Minimap, its container or the cluster
+-- (Edit Mode owns them; the porting guide's "Edit Mode systems"). Read from
+-- each widget's own call log (WowTestKit's w._log); the old stub threw on
+-- Minimap:SetParent and SetMaskTexture (Codex, #10).
+local LEFT_TO_BLIZZARD = { SetParent = true, SetMaskTexture = true, SetPoint = true, ClearAllPoints = true,
+    SetAllPoints = true, SetSize = true, SetWidth = true, SetHeight = true, SetScale = true, Show = true,
+    Hide = true, SetShown = true, SetAlpha = true, SetFrameStrata = true }
+for _, w in ipairs({ Minimap, MinimapCluster.MinimapContainer, MinimapCluster }) do
+    local calls = {}
+    for _, entry in ipairs(w._log) do
+        if LEFT_TO_BLIZZARD[entry[1]] then calls[#calls + 1] = entry[1] end
+    end
+    eq(table.concat(calls, ", "), "", label(w) .. " left to Blizzard at login")
+end
+
 -- Nothing of ours is drawn on, parented to or anchored to Minimap: another
 -- addon can borrow it (NodeRadar's scan mode, Glass MiniMap #56).
 eq(#Minimap._regions, 0, "nothing drawn on Minimap")
