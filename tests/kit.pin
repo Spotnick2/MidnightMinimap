@@ -1,0 +1,6 @@
+# WowTestKit for these tests: the commit, and the client build to test against.
+# build: the Forever port has never been measured in game; it was last checked
+# against Blizzard's UI source at 71037 (#4), the newest build the kit has data for.
+sha=b55711d0bb120a889e706718b1e567f7c93643a3
+build=71037
+api=2

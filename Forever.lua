@@ -35,9 +35,14 @@ local defaults = {
     hideZoneText = false,
     hideClock = false,
     hideHeader = false,
+    showDayCycle = false,
 }
-local db, host, header, panel, zone, coords, mail, clock, coordTicker
+local db, host, header, panel, zone, coords, mail, clock, coordTicker, dayCycle
+-- Faded Blizzard pieces: region -> whether it took the mouse before. Each
+-- region is hooked once (hooked), so fading it again after an Unfade adds
+-- no second set of hooks.
 local hidden = setmetatable({}, { __mode = "k" })
+local hooked = setmetatable({}, { __mode = "k" })
 
 local function IsSecret(value)
     return issecretvalue and issecretvalue(value)
@@ -61,24 +66,44 @@ local function CVarOn(name)
     return ok and not IsSecret(on) and on == true
 end
 
+local busy
+local function Refade(self)
+    if hidden[self] == nil or busy then return end
+    busy = true
+    pcall(self.SetAlpha, self, 0)
+    if self.EnableMouse then pcall(self.EnableMouse, self, false) end
+    busy = false
+end
+
+-- Alpha 0 and mouse off, kept so through Blizzard's own Show/SetShown/SetAlpha.
 local function Fade(region)
     if not region or not region.SetAlpha then return end
-    if hidden[region] then return end
-    hidden[region] = true
-    local busy
-    local function refade(self)
-        if not hidden[self] or busy then return end
-        busy = true
-        pcall(self.SetAlpha, self, 0)
-        if self.EnableMouse then pcall(self.EnableMouse, self, false) end
-        busy = false
+    if hidden[region] ~= nil then return end
+    local mouse = false
+    if region.IsMouseEnabled then
+        local ok, on = pcall(region.IsMouseEnabled, region)
+        mouse = ok and not IsSecret(on) and on == true
     end
-    for _, method in ipairs({ "Show", "SetShown", "SetAlpha" }) do
-        if type(region[method]) == "function" then
-            pcall(hooksecurefunc, region, method, refade)
+    hidden[region] = mouse
+    if not hooked[region] then
+        hooked[region] = true
+        for _, method in ipairs({ "Show", "SetShown", "SetAlpha" }) do
+            if type(region[method]) == "function" then
+                pcall(hooksecurefunc, region, method, Refade)
+            end
         end
     end
-    refade(region)
+    Refade(region)
+end
+
+-- A faded piece back as Blizzard had it: alpha 1, and the mouse if it took it.
+-- Its hooks stay, idle until it's faded again.
+local function Unfade(region)
+    if not region or hidden[region] == nil then return end
+    local mouse = hidden[region]
+    hidden[region] = nil
+    pcall(region.SetAlpha, region, 1)
+    if mouse and region.EnableMouse then pcall(region.EnableMouse, region, true) end
 end
 
 local function SetPanelTexture(texture)
@@ -89,6 +114,14 @@ local function SetPanelTexture(texture)
         texture:SetTextureSliceMode(1)
         texture:SetTextureSliceMargins(20, 20, 25, 25)
     end
+end
+
+-- Forever's day/night disc (MinimapCluster.DielFrame, Camelot\Diel.lua): a
+-- child of MinimapContainer at CENTER +55, +86, drawn with Blizzard's frame
+-- art (UI-HUD-Minimap-Frame-Cycle), so it lands on the Midnight border's
+-- top right. Hidden unless the player asks for it (/mm daycycle).
+local function ApplyDayCycle()
+    if db.showDayCycle then Unfade(dayCycle) else Fade(dayCycle) end
 end
 
 local function UpdateHeader()
@@ -205,6 +238,12 @@ local function Init()
     Fade(cluster.Tracking and cluster.Tracking.Button)
     Fade(cluster.Tracking and cluster.Tracking.Background)
     Fade(container.PlayerCoords)
+    -- Nothing else under Tracking shows: Forever's has only that Background
+    -- and its DropdownButton (Minimap.xml, Camelot\MinimapTrackingButton.xml).
+    -- Forever builds no instance flag since 70425
+    -- (Camelot\MinimapInstanceDifficulty.lua omits CreateInstanceDifficultyFrame).
+    dayCycle = cluster.DielFrame
+    ApplyDayCycle()
 
     -- The host stands where the map is, never on it (see the top of the file).
     -- One level over the map, as the border texture on the map's OVERLAY was.
@@ -272,6 +311,11 @@ local function Init()
     end
     clock = TimeManagerClockButton
     if clock then clock:SetFrameLevel(header:GetFrameLevel() + 1) end
+    -- Blizzard's calendar stays (GameTimeFrame, a MinimapCluster child). Its
+    -- XML anchors it to the zone header's TOPRIGHT, 4 px in
+    -- (Camelot\GameTimeFrameTemplate.xml), so like the clock it goes over our
+    -- header, which takes the zone header's place one level up.
+    if GameTimeFrame then GameTimeFrame:SetFrameLevel(header:GetFrameLevel() + 1) end
     UpdateHeader()
 
     coords = CreateFrame("Frame", "MidnightMinimapForeverCoords", container)
@@ -330,6 +374,11 @@ local function Init()
         elseif cmd == "zone" then
             db.hideZoneText = not db.hideZoneText
             UpdateHeader()
+        elseif cmd == "daycycle" or cmd == "daynight" then
+            db.showDayCycle = not db.showDayCycle
+            ApplyDayCycle()
+            print("|cffff8800MidnightMinimap|r: Blizzard's day/night disc " .. (db.showDayCycle and "shown." or "hidden."))
+            return
         elseif cmd == "coords" or cmd == "coord" or cmd == "xy" then
             -- Blizzard's setting, the same as the Options checkbox. CVAR_UPDATE
             -- then shows or hides ours. Success is the setting reading back as
@@ -349,11 +398,12 @@ local function Init()
             -- Our own choices only: the coordinates are Blizzard's setting.
             for key, value in pairs(defaults) do db[key] = value end
             UpdateHeader()
+            ApplyDayCycle()
         elseif cmd == "lock" or cmd == "scale" then
             print("|cffff8800MidnightMinimap|r: Use Edit Mode to move or scale the Forever minimap.")
             return
         else
-            print("|cffff8800MidnightMinimap|r: /mm header, clock, zone, coords, reset. Move and scale in Edit Mode.")
+            print("|cffff8800MidnightMinimap|r: /mm header, clock, zone, daycycle, coords, reset. Move and scale in Edit Mode.")
             return
         end
         print("|cffff8800MidnightMinimap|r: Settings updated.")
