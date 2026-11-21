@@ -184,8 +184,12 @@ local function Init()
 
     -- v1.1.0 had its own coordinates toggle (showCoords). The setting is now
     -- Blizzard's: a player who had ours on gets Blizzard's turned on, once.
-    if db.showCoords ~= nil then
-        if db.showCoords == true then pcall(SetCVar, SHOW_COORDS, "1") end
+    -- SetCVar can fail without an error (C_CVar.SetCVar returns false), so the
+    -- old flag goes only once the setting reads on; else the next login retries.
+    if db.showCoords == true then
+        pcall(SetCVar, SHOW_COORDS, "1")
+        if CVarOn(SHOW_COORDS) then db.showCoords = nil end
+    elseif db.showCoords ~= nil then
         db.showCoords = nil
     end
 
@@ -206,6 +210,17 @@ local function Init()
     host:SetSize(MAP_SIZE, MAP_SIZE)
     host:SetPoint("CENTER", container, "CENTER", 0, 0)
     host:SetFrameLevel(map:GetFrameLevel() + 1)
+    -- Shown with the map. The Toggle Minimap binding (ToggleMinimap) hides
+    -- Minimap but not its container, and a border drawn on the map used to go
+    -- with it (Codex, #4). Only the shown state is followed: a borrow (alpha
+    -- 0, moved) never hides the map, so the host stays put through a scan.
+    local function FollowMap()
+        local ok, shown = pcall(map.IsShown, map)
+        if ok and not IsSecret(shown) then host:SetShown(shown == true) end
+    end
+    map:HookScript("OnShow", FollowMap)
+    map:HookScript("OnHide", FollowMap)
+    FollowMap()
 
     local border = host:CreateTexture("MidnightMinimapForeverBorder", "OVERLAY", nil, 7)
     border:SetTexture(ATLAS)
@@ -305,9 +320,11 @@ local function Init()
             UpdateHeader()
         elseif cmd == "coords" or cmd == "coord" or cmd == "xy" then
             -- Blizzard's setting, the same as the Options checkbox. CVAR_UPDATE
-            -- then shows or hides ours.
+            -- then shows or hides ours. Success is the setting reading back as
+            -- asked: SetCVar can return false instead of raising (Codex, #4).
             local on = not CVarOn(SHOW_COORDS)
-            if not pcall(SetCVar, SHOW_COORDS, on and "1" or "0") then
+            pcall(SetCVar, SHOW_COORDS, on and "1" or "0")
+            if CVarOn(SHOW_COORDS) ~= on then
                 print("|cffff8800MidnightMinimap|r: Coordinates are Blizzard's setting: Options > Interface > Player Minimap Coordinates.")
                 return
             end
