@@ -36,13 +36,17 @@ Use `/midnightminimap` or `/mm`.
 | `/mm clock` | Toggle the clock | Toggle the clock |
 | `/mm zone` | Toggle zone text | Toggle zone text |
 | `/mm daycycle` | (none) | Show or hide Blizzard's day/night disc |
-| `/mm reset` | Reset addon settings, position, and scale | Reset addon visibility choices |
+| `/mm reset` | Reset addon settings, position, and scale | Reset addon visibility choices (not Blizzard's coordinates setting) |
 | `/mm lock` | Toggle frame lock | Directs you to Edit Mode |
 | `/mm scale <n>` | Set scale from 0.5 to 3.0 | Directs you to Edit Mode |
 
 On both clients, `/mm coord` and `/mm xy` also toggle coordinates.
 
 On Forever, the coordinates follow Blizzard's own settings in Options > Interface: **Player Minimap Coordinates** shows them and **Coordinates by Tenths** sets their precision. The addon shows them in its own style in place of Blizzard's text, so there is one readout and one setting.
+
+## Download
+
+On CurseForge, on [Wago Addons](https://addons.wago.io/addons/EGPaPEN1), and as a [GitHub Release](https://github.com/Spotnick2/MidnightMinimap/releases), which addon managers such as WowUp read. One zip works on both clients.
 
 ## Moving the minimap
 
@@ -56,7 +60,7 @@ This addon is intentionally focused on the minimap. It does not aim to recreate 
 ## Compatibility
 
 - **TBC Anniversary:** Interface 20505.
-- **World of Warcraft: Forever:** Interface 16001. The Forever port was checked against Blizzard's 1.60.1.70450 UI source and passed Lua 5.1 syntax and offline startup checks. **It has not been tested in game because the beta ended.**
+- **World of Warcraft: Forever:** Interface 16001. The Forever port follows Blizzard's 1.60.1.71037 UI source and the minimap behaviour Glass MiniMap measured in game, and passes offline tests against the 71037 client's API (WowTestKit). **It has not been tested in game.**
 
 ## Credits
 
