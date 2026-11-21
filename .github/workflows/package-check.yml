@@ -56,14 +56,16 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua5.1
 
-      - name: Syntax check
-        run: luac5.1 -p *.lua tests/*.lua
+      # WowTestKit at the commit tests/kit.pin names (its README): the same
+      # commit local runs use.
+      - name: Fetch WowTestKit at its pin
+        run: |
+          bash tests/fetch_kit.sh "$RUNNER_TEMP/WowTestKit"
+          echo "WOWTESTKIT=$RUNNER_TEMP/WowTestKit" >> "$GITHUB_ENV"
 
-      - name: Forever startup smoke test
-        run: lua5.1 tests/test_forever.lua
-
-      - name: TOC test
-        run: lua5.1 tests/test_toc.lua
+      # luac -p on the TOC's files and the tests, then every tests/test_*.lua.
+      - name: Unit tests
+        run: bash "$WOWTESTKIT/scripts/run.sh" MidnightMinimap.toc tests/*.lua
 
       # On a manual run GITHUB_REF is main, and the packager names the build
       # after whichever tag at HEAD it sorts first (release.sh 613-628 prefers

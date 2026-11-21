@@ -1,221 +1,118 @@
--- Offline startup smoke test; run with Lua 5.1 from the repository root.
-local frames, tickers, printed
-local function frame(name)
-    local f = { name = name, scripts = {}, hooks = {}, shown = true, events = {}, points = {} }
-    setmetatable(f, { __index = function(_, key)
-        if key == "CreateTexture" or key == "CreateFontString" then
-            return function(self, name)
-                local region = frame(name)
-                region.parent = self
-                if name then _G[name] = region end
-                return region
-            end
-        elseif key == "SetScript" then
-            return function(self, event, fn) self.scripts[event] = fn end
-        elseif key == "HookScript" then
-            return function(self, event, fn)
-                self.hooks[event] = self.hooks[event] or {}
-                table.insert(self.hooks[event], fn)
-            end
-        elseif key == "RegisterEvent" then
-            return function(self, event) self.events[event] = true end
-        elseif key == "GetFrameLevel" then
-            return function() return 10 end
-        elseif key == "SetShown" then
-            return function(self, shown) self.shown = shown end
-        elseif key == "IsShown" then
-            return function(self) return self.shown end
-        elseif key == "SetAlpha" then
-            return function(self, alpha) self.alpha = alpha end
-        elseif key == "SetText" then
-            return function(self, text) self.text = text end
-        elseif key == "SetFormattedText" then
-            return function(self, fmt, ...) self.text = fmt:format(...) end
-        elseif key == "SetPoint" then
-            -- Nothing of ours may be anchored to Minimap: another addon can
-            -- borrow it (NodeRadar's scan mode, Glass MiniMap #56).
-            return function(self, point, relative, ...)
-                if relative == Minimap then error("anchored to Minimap: " .. tostring(self.name), 2) end
-                self.points[#self.points + 1] = { point, relative, ... }
-            end
-        end
-        return function() end
-    end })
-    return f
-end
+-- test_forever.lua: the Forever port's startup, its frames and settings.
+dofile("tests/wow_stubs.lua")
+dofile("tests/harness.lua")
 
--- Blizzard's coordinates settings, with CVAR_UPDATE sent to the frames that
--- registered it (cvarName, value), as the client does. With cvarFails set,
--- SetCVar returns false and writes nothing, as C_CVar.SetCVar can; with
--- cvarSilent set, it writes without CVAR_UPDATE.
-local cvars, cvarFails, cvarSilent
-function GetCVarBool(name) return cvars[name] == "1" end
-function SetCVar(name, value)
-    if cvarFails then return false end
-    cvars[name] = tostring(value)
-    if cvarSilent then return true end
-    for _, f in ipairs(frames) do
-        if f.events.CVAR_UPDATE and f.scripts.OnEvent then f.scripts.OnEvent(f, "CVAR_UPDATE", name, cvars[name]) end
-    end
-    return true
+local function settings(show, tenths)
+    return function() WoW.cvars = { minimapShowPlayerCoords = show, coordsByTenths = tenths } end
 end
+local function container() return MinimapCluster.MinimapContainer end
+local function label(w) return w._name or ("<" .. w._type .. ">") end
 
-function GetBuildInfo() return "1.60.1", "70450", "", 16001 end
-function CreateFrame(_, name, parent)
-    if parent == Minimap then error("parented to Minimap: " .. tostring(name), 2) end
-    local f = frame(name)
-    f.parent = parent
-    frames[#frames + 1] = f
-    if name then _G[name] = f end
-    return f
-end
--- A post-hook, as the client's: the original runs, then the hook, with the same arguments.
-function hooksecurefunc(obj, method, fn)
-    if type(obj) == "string" then obj, method, fn = _G, obj, method end
-    local orig = obj[method]
-    assert(type(orig) == "function", "hooksecurefunc: no method " .. tostring(method))
-    obj[method] = function(...)
-        local results = { orig(...) }
-        fn(...)
-        return unpack(results)
-    end
-end
-function GetMinimapZoneText() return "Test Zone" end
-function HasNewMail() return false end
-function print(msg) printed[#printed + 1] = msg end
-function strtrim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
-strlower = string.lower
-C_AddOns = { LoadAddOn = function() end }
-C_Timer = { NewTicker = function(_, callback)
-    local ticker = { callback = callback, Cancel = function(self) self.cancelled = true end }
-    tickers[#tickers + 1] = ticker
-    return ticker
-end }
-C_Map = { GetBestMapForUnit = function() return 1 end,
-          GetPlayerMapPosition = function() return { GetXY = function() return 0.5, 0.25 end } end }
-
--- A fresh client and a login with this saved state.
-local container, uiHidden
-local function boot(saved, settings, fails, mapHidden)
-    frames, tickers, printed = {}, {}, {}
-    cvars, cvarFails, cvarSilent, uiHidden = settings, fails, false, false
-    SlashCmdList = {}
-    for _, name in ipairs({ "MidnightMinimapForeverBorder", "MidnightMinimapForeverHeader",
-            "MidnightMinimapForeverTracking", "MidnightMinimapForeverCoords", "MidnightMinimapForeverMail" }) do
-        _G[name] = nil
-    end
-    UIParent = frame()
-    Minimap = frame("Minimap")
-    Minimap.SetParent = function() error("Forever must not reparent Minimap") end
-    Minimap.SetMaskTexture = function() error("Forever must keep Blizzard's mask") end
-    Minimap.CreateTexture = function() error("Forever must draw nothing on Minimap") end
-    Minimap.shown = not mapHidden
-    -- ToggleMinimap's Hide/Show. The map's OnShow/OnHide run only while the
-    -- UI is visible: with it hidden (uiHidden), the flag changes silently.
-    local function setShown(self, shown)
-        if self.shown == shown then return end
-        self.shown = shown
-        if uiHidden then return end
-        for _, fn in ipairs(self.hooks[shown and "OnShow" or "OnHide"] or {}) do fn(self) end
-    end
-    Minimap.Hide = function(self) setShown(self, false) end
-    Minimap.Show = function(self) setShown(self, true) end
-    Minimap.SetShown = function(self, shown) setShown(self, shown and true or false) end
-    MinimapCompassTexture = frame()
-    MinimapCompassTextureUnderlay = frame()
-    MinimapBackdrop = { StaticOverlayTexture = frame() }
-    TimeManagerClockButton = frame()
-    GameTooltip = frame()
-    MinimapCluster = frame("MinimapCluster")
-    MinimapCluster.BorderTop = frame()
-    MinimapCluster.ZoneTextButton = frame()
-    MinimapCluster.Tracking = { Button = frame(), Background = frame() }
-    MinimapCluster.IndicatorFrame = { MailFrame = frame() }
-    container = frame("MinimapContainer")
-    container.PlayerCoords = frame("PlayerCoords")
-    MinimapCluster.MinimapContainer = container
-    MidnightMinimapDB = saved
-
-    dofile("MidnightMinimap.lua")
-    assert(#frames == 0, "Classic startup ran on Forever")
-    dofile("Forever.lua")
-    assert(#frames == 1, "Forever login handler missing")
-    frames[1].scripts.OnEvent(frames[1], "PLAYER_LOGIN")
-end
+-- The TBC file returns on Forever; Forever.lua waits for the login.
+WoW.reset()
+for _, file in ipairs(Kit.tocFiles(TOC)) do dofile(file) end
+local waiting = false
+for _, f in ipairs(WoW.frames) do if f._events.PLAYER_LOGIN then waiting = true end end
+check(waiting, "Forever.lua waits for PLAYER_LOGIN")
+check(rawget(_G, "MidnightMinimapForeverBorder") == nil, "nothing is built before the login")
 
 -- A failed write keeps v1.1.0's toggle for the next login, and /mm coords
 -- doesn't claim it worked. The map is hidden at login (Toggle Minimap): no border.
-boot({ showCoords = true }, { minimapShowPlayerCoords = "0", coordsByTenths = "0" }, true, true)
-assert(not MidnightMinimapForeverBorder.parent.shown, "the border shown with the map hidden at login")
-assert(MidnightMinimapDB.showCoords == true, "v1.1.0's coordinates toggle dropped though the write failed")
+loadAddon({ showCoords = true }, { before = function()
+    settings(false, false)()
+    WoW.cvarFails = true
+    WoW.setShown(Minimap, false)
+end })
+eq(MidnightMinimapDB.showCoords, true, "v1.1.0's coordinates toggle kept while the write fails")
+eq(MidnightMinimapForeverBorder:GetParent():IsShown(), false, "no border with the map hidden at login")
 SlashCmdList.MIDNIGHTMINIMAP("coords")
-assert(printed[#printed]:find("Options > Interface", 1, true), "/mm coords reported success though the write failed")
-assert(not MidnightMinimapForeverCoords.shown, "coordinates shown though the setting is off")
+check(lastPrint():find("Options > Interface", 1, true), "/mm coords reports the failed write: " .. tostring(lastPrint()))
+eq(MidnightMinimapForeverCoords:IsShown(), false, "no coordinates while the setting is off")
 -- Then the player's own change supersedes the pending migration: through
 -- /mm coords (even without a CVAR_UPDATE for it)...
-cvarFails, cvarSilent = false, true
+WoW.cvarFails, WoW.cvarSilent = false, true
 SlashCmdList.MIDNIGHTMINIMAP("coords")
-assert(MidnightMinimapDB.showCoords == nil, "/mm coords left the pending migration to replay")
+eq(MidnightMinimapDB.showCoords, nil, "/mm coords retires the pending migration")
 -- ...or through Blizzard's Options checkbox.
-boot({ showCoords = true }, { minimapShowPlayerCoords = "0", coordsByTenths = "0" }, true)
-assert(MidnightMinimapDB.showCoords == true, "v1.1.0's coordinates toggle dropped though the write failed")
-cvarFails = false
+loadAddon({ showCoords = true }, { before = function() settings(false, false)(); WoW.cvarFails = true end })
+eq(MidnightMinimapDB.showCoords, true, "v1.1.0's coordinates toggle kept while the write fails")
+WoW.cvarFails = false
 SetCVar("minimapShowPlayerCoords", "1")
 SetCVar("minimapShowPlayerCoords", "0")
-assert(MidnightMinimapDB.showCoords == nil, "a change in Options left the pending migration to replay")
+eq(MidnightMinimapDB.showCoords, nil, "a change in Options retires the pending migration")
 
 -- v1.1.0's coordinates toggle, on: it becomes Blizzard's setting.
-boot({ showCoords = true }, { minimapShowPlayerCoords = "0", coordsByTenths = "0" }, false)
-assert(MidnightMinimapForeverBorder, "Forever border missing")
-assert(MidnightMinimapForeverHeader, "Forever header missing")
-assert(MidnightMinimapForeverTracking, "Forever tracking button missing")
-assert(MidnightMinimapForeverCoords, "Forever coordinates missing")
-assert(SlashCmdList.MIDNIGHTMINIMAP, "Forever slash handler missing")
+loadAddon({ showCoords = true }, { before = settings(false, false) })
+for _, name in ipairs({ "MidnightMinimapForeverBorder", "MidnightMinimapForeverHeader",
+        "MidnightMinimapForeverTracking", "MidnightMinimapForeverCoords", "MidnightMinimapForeverMail" }) do
+    check(rawget(_G, name) ~= nil, name .. " built")
+end
+check(SlashCmdList.MIDNIGHTMINIMAP ~= nil, "the /mm handler")
 
--- The border hangs from a host on the container's CENTER, where the map is.
-local host = MidnightMinimapForeverBorder.parent
-assert(host and host.parent == container, "the border's host is not on the minimap container")
-assert(host.points[1][1] == "CENTER" and host.points[1][2] == container, "the host is not on the container's CENTER")
-for _, name in ipairs({ "MidnightMinimapForeverCoords", "MidnightMinimapForeverMail" }) do
-    local f = _G[name]
-    assert(f.parent == container and f.points[1][2] == host, name .. " is not on the host")
+-- Nothing of ours is drawn on, parented to or anchored to Minimap: another
+-- addon can borrow it (NodeRadar's scan mode, Glass MiniMap #56).
+eq(#Minimap._regions, 0, "nothing drawn on Minimap")
+for _, w in ipairs(allWidgets()) do
+    if w ~= MinimapBackdrop then check(w._parent ~= Minimap, "parented to Minimap: " .. label(w)) end
+    for _, p in ipairs(w._points) do check(p[2] ~= Minimap, "anchored to Minimap: " .. label(w)) end
 end
 
--- The border goes with the map when the Toggle Minimap binding hides it.
-assert(host.shown, "the border's host hidden with the map shown")
+-- The border hangs from a host on the container's CENTER, where the map is.
+local host = MidnightMinimapForeverBorder:GetParent()
+eq(host:GetParent(), container(), "the border's host is on the minimap container")
+local point, rel, relPoint, x, y = host:GetPoint(1)
+check(point == "CENTER" and rel == container() and relPoint == "CENTER" and x == 0 and y == 0,
+    "the host is on the container's CENTER")
+eq(host:GetNumPoints(), 1, "the host has one anchor")
+for _, name in ipairs({ "MidnightMinimapForeverCoords", "MidnightMinimapForeverMail" }) do
+    local f = _G[name]
+    check(f:GetParent() == container() and select(2, f:GetPoint(1)) == host, name .. " is on the host")
+end
+
+-- The border goes with the map when the Toggle Minimap binding hides it...
+eq(host:IsShown(), true, "the border shown with the map")
 Minimap:Hide()
-assert(not host.shown, "the border stayed with the map hidden")
+eq(host:IsShown(), false, "the border hidden with the map")
 Minimap:Show()
-assert(host.shown, "the border did not come back with the map")
--- With the UI hidden, the map's scripts don't run, but the border still follows.
-uiHidden = true
+eq(host:IsShown(), true, "the border back with the map")
+-- ...also while the UI is hidden: the map's scripts don't run then.
+UIParent:Hide()
 Minimap:Hide()
-uiHidden = false
-assert(not host.shown, "the border came back with the UI though the map was toggled off")
+UIParent:Show()
+eq(host:IsShown(), false, "the border stays hidden when the UI comes back with the map toggled off")
 Minimap:SetShown(true)
-assert(host.shown, "the border did not follow Minimap:SetShown")
+eq(host:IsShown(), true, "the border follows Minimap:SetShown")
 
 -- The old toggle migrated once; Blizzard's own text faded, ours shown.
-assert(cvars.minimapShowPlayerCoords == "1", "v1.1.0's coordinates toggle was not carried over")
-assert(MidnightMinimapDB.showCoords == nil, "v1.1.0's coordinates toggle was not removed")
-assert(container.PlayerCoords.alpha == 0, "Blizzard's coordinates were not faded")
+eq(WoW.cvars.minimapShowPlayerCoords, true, "v1.1.0's coordinates toggle carried over")
+eq(MidnightMinimapDB.showCoords, nil, "v1.1.0's coordinates toggle removed")
+eq(container().PlayerCoords:GetAlpha(), 0, "Blizzard's coordinates faded")
 local coords = MidnightMinimapForeverCoords
-assert(coords.shown and #tickers == 1, "coordinates not shown with Blizzard's setting on")
-assert(coords.text.text == "50, 25", "whole coordinates expected, got " .. tostring(coords.text.text))
+local function liveTickers()
+    local n = 0
+    for _, t in ipairs(WoW.timers) do if not t.cancelled then n = n + 1 end end
+    return n
+end
+eq(coords:IsShown(), true, "coordinates shown with Blizzard's setting on")
+eq(liveTickers(), 1, "one coordinates ticker")
+eq(coords.text:GetText(), "50, 25", "whole coordinates")
 SetCVar("coordsByTenths", "1")
-assert(coords.text.text == "50.0, 25.0", "coordinates by tenths expected, got " .. tostring(coords.text.text))
+eq(coords.text:GetText(), "50.0, 25.0", "coordinates by tenths")
 
 -- /mm coords flips Blizzard's setting, and ours follows it.
 SlashCmdList.MIDNIGHTMINIMAP("coords")
-assert(cvars.minimapShowPlayerCoords == "0", "/mm coords did not turn Blizzard's setting off")
-assert(printed[#printed]:find("hidden", 1, true), "/mm coords did not report the change")
-assert(not coords.shown and tickers[1].cancelled, "coordinates still shown with Blizzard's setting off")
+eq(WoW.cvars.minimapShowPlayerCoords, false, "/mm coords turns Blizzard's setting off")
+check(lastPrint():find("hidden", 1, true), "/mm coords reports the change: " .. tostring(lastPrint()))
+eq(coords:IsShown(), false, "coordinates hidden with Blizzard's setting off")
+eq(liveTickers(), 0, "the coordinates ticker cancelled")
 SetCVar("minimapShowPlayerCoords", "1")
-assert(coords.shown and #tickers == 2, "coordinates did not follow Blizzard's setting")
+eq(coords:IsShown(), true, "coordinates follow Blizzard's setting")
+eq(liveTickers(), 1, "the coordinates ticker back")
 
 SlashCmdList.MIDNIGHTMINIMAP("header")
-assert(MidnightMinimapDB.hideHeader == true, "Header setting did not change")
+eq(MidnightMinimapDB.hideHeader, true, "/mm header")
 SlashCmdList.MIDNIGHTMINIMAP("reset")
-assert(MidnightMinimapDB.hideHeader == false, "Reset did not restore Forever defaults")
-assert(cvars.minimapShowPlayerCoords == "1" and coords.shown, "Reset changed Blizzard's coordinates setting")
-io.write("Forever startup smoke test passed\n")
+eq(MidnightMinimapDB.hideHeader, false, "/mm reset restores the defaults")
+check(WoW.cvars.minimapShowPlayerCoords == true and coords:IsShown(), "/mm reset leaves Blizzard's coordinates setting")
+
+done("test_forever")
