@@ -15,3 +15,4 @@ ignore:
   - tests
   - dist
   - CHANGELOG.md
+  - README.curseforge.md
