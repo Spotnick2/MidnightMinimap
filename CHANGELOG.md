@@ -1,6 +1,7 @@
 # Midnight MiniMap Changelog
 
 ## Unreleased
+- Also published on Wago Addons, and as a GitHub Release with the release.json addon managers such as WowUp read.
 - Forever: the coordinates follow Blizzard's Player Minimap Coordinates and Coordinates by Tenths settings, and replace Blizzard's own text instead of adding a second readout. `/mm coords` toggles Blizzard's setting; a v1.1.0 coordinates toggle that was on turns it on once.
 - Forever: the border, coordinates and mail indicator no longer move with the minimap when another addon briefly borrows it (NodeRadar's scan mode).
 

@@ -3,6 +3,8 @@
 ## Notes: Applies the Midnight/Dragonflight-style minimap border in Forever and TBC Anniversary. Based on DragonflightUI minimap textures by Karl-Heinz Schneider.
 ## Author: Spotnick
 ## Version: @project-version@
+## X-Curse-Project-ID: 1508638
+## X-Wago-ID: EGPaPEN1
 ## SavedVariables: MidnightMinimapDB
 
 MidnightMinimap.lua
