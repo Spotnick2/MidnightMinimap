@@ -46,12 +46,14 @@ end
 
 -- Blizzard's coordinates settings, with CVAR_UPDATE sent to the frames that
 -- registered it (cvarName, value), as the client does. With cvarFails set,
--- SetCVar returns false and writes nothing, as C_CVar.SetCVar can.
-local cvars, cvarFails
+-- SetCVar returns false and writes nothing, as C_CVar.SetCVar can; with
+-- cvarSilent set, it writes without CVAR_UPDATE.
+local cvars, cvarFails, cvarSilent
 function GetCVarBool(name) return cvars[name] == "1" end
 function SetCVar(name, value)
     if cvarFails then return false end
     cvars[name] = tostring(value)
+    if cvarSilent then return true end
     for _, f in ipairs(frames) do
         if f.events.CVAR_UPDATE and f.scripts.OnEvent then f.scripts.OnEvent(f, "CVAR_UPDATE", name, cvars[name]) end
     end
@@ -67,7 +69,17 @@ function CreateFrame(_, name, parent)
     if name then _G[name] = f end
     return f
 end
-function hooksecurefunc() end
+-- A post-hook, as the client's: the original runs, then the hook, with the same arguments.
+function hooksecurefunc(obj, method, fn)
+    if type(obj) == "string" then obj, method, fn = _G, obj, method end
+    local orig = obj[method]
+    assert(type(orig) == "function", "hooksecurefunc: no method " .. tostring(method))
+    obj[method] = function(...)
+        local results = { orig(...) }
+        fn(...)
+        return unpack(results)
+    end
+end
 function GetMinimapZoneText() return "Test Zone" end
 function HasNewMail() return false end
 function print(msg) printed[#printed + 1] = msg end
@@ -83,10 +95,10 @@ C_Map = { GetBestMapForUnit = function() return 1 end,
           GetPlayerMapPosition = function() return { GetXY = function() return 0.5, 0.25 end } end }
 
 -- A fresh client and a login with this saved state.
-local container
+local container, uiHidden
 local function boot(saved, settings, fails, mapHidden)
     frames, tickers, printed = {}, {}, {}
-    cvars, cvarFails = settings, fails
+    cvars, cvarFails, cvarSilent, uiHidden = settings, fails, false, false
     SlashCmdList = {}
     for _, name in ipairs({ "MidnightMinimapForeverBorder", "MidnightMinimapForeverHeader",
             "MidnightMinimapForeverTracking", "MidnightMinimapForeverCoords", "MidnightMinimapForeverMail" }) do
@@ -98,14 +110,17 @@ local function boot(saved, settings, fails, mapHidden)
     Minimap.SetMaskTexture = function() error("Forever must keep Blizzard's mask") end
     Minimap.CreateTexture = function() error("Forever must draw nothing on Minimap") end
     Minimap.shown = not mapHidden
-    -- ToggleMinimap's Hide/Show, with the scripts' hooks run as the client does.
+    -- ToggleMinimap's Hide/Show. The map's OnShow/OnHide run only while the
+    -- UI is visible: with it hidden (uiHidden), the flag changes silently.
     local function setShown(self, shown)
         if self.shown == shown then return end
         self.shown = shown
+        if uiHidden then return end
         for _, fn in ipairs(self.hooks[shown and "OnShow" or "OnHide"] or {}) do fn(self) end
     end
     Minimap.Hide = function(self) setShown(self, false) end
     Minimap.Show = function(self) setShown(self, true) end
+    Minimap.SetShown = function(self, shown) setShown(self, shown and true or false) end
     MinimapCompassTexture = frame()
     MinimapCompassTextureUnderlay = frame()
     MinimapBackdrop = { StaticOverlayTexture = frame() }
@@ -136,6 +151,18 @@ assert(MidnightMinimapDB.showCoords == true, "v1.1.0's coordinates toggle droppe
 SlashCmdList.MIDNIGHTMINIMAP("coords")
 assert(printed[#printed]:find("Options > Interface", 1, true), "/mm coords reported success though the write failed")
 assert(not MidnightMinimapForeverCoords.shown, "coordinates shown though the setting is off")
+-- Then the player's own change supersedes the pending migration: through
+-- /mm coords (even without a CVAR_UPDATE for it)...
+cvarFails, cvarSilent = false, true
+SlashCmdList.MIDNIGHTMINIMAP("coords")
+assert(MidnightMinimapDB.showCoords == nil, "/mm coords left the pending migration to replay")
+-- ...or through Blizzard's Options checkbox.
+boot({ showCoords = true }, { minimapShowPlayerCoords = "0", coordsByTenths = "0" }, true)
+assert(MidnightMinimapDB.showCoords == true, "v1.1.0's coordinates toggle dropped though the write failed")
+cvarFails = false
+SetCVar("minimapShowPlayerCoords", "1")
+SetCVar("minimapShowPlayerCoords", "0")
+assert(MidnightMinimapDB.showCoords == nil, "a change in Options left the pending migration to replay")
 
 -- v1.1.0's coordinates toggle, on: it becomes Blizzard's setting.
 boot({ showCoords = true }, { minimapShowPlayerCoords = "0", coordsByTenths = "0" }, false)
@@ -160,6 +187,13 @@ Minimap:Hide()
 assert(not host.shown, "the border stayed with the map hidden")
 Minimap:Show()
 assert(host.shown, "the border did not come back with the map")
+-- With the UI hidden, the map's scripts don't run, but the border still follows.
+uiHidden = true
+Minimap:Hide()
+uiHidden = false
+assert(not host.shown, "the border came back with the UI though the map was toggled off")
+Minimap:SetShown(true)
+assert(host.shown, "the border did not follow Minimap:SetShown")
 
 -- The old toggle migrated once; Blizzard's own text faded, ours shown.
 assert(cvars.minimapShowPlayerCoords == "1", "v1.1.0's coordinates toggle was not carried over")

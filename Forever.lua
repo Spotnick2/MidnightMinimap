@@ -185,7 +185,9 @@ local function Init()
     -- v1.1.0 had its own coordinates toggle (showCoords). The setting is now
     -- Blizzard's: a player who had ours on gets Blizzard's turned on, once.
     -- SetCVar can fail without an error (C_CVar.SetCVar returns false), so the
-    -- old flag goes only once the setting reads on; else the next login retries.
+    -- old flag goes only once the setting reads on; else the next login
+    -- retries, unless the player changes the setting first (CVAR_UPDATE below:
+    -- their choice wins, Codex, #4).
     if db.showCoords == true then
         pcall(SetCVar, SHOW_COORDS, "1")
         if CVarOn(SHOW_COORDS) then db.showCoords = nil end
@@ -214,12 +216,16 @@ local function Init()
     -- Minimap but not its container, and a border drawn on the map used to go
     -- with it (Codex, #4). Only the shown state is followed: a borrow (alpha
     -- 0, moved) never hides the map, so the host stays put through a scan.
+    -- The map's own Show/Hide/SetShown calls are hooked, not its OnShow and
+    -- OnHide scripts: with the UI hidden, the map's flag changes without
+    -- either script running, and the host would come back stale (Codex, #4).
     local function FollowMap()
         local ok, shown = pcall(map.IsShown, map)
         if ok and not IsSecret(shown) then host:SetShown(shown == true) end
     end
-    map:HookScript("OnShow", FollowMap)
-    map:HookScript("OnHide", FollowMap)
+    for _, method in ipairs({ "Show", "Hide", "SetShown" }) do
+        pcall(hooksecurefunc, map, method, FollowMap)
+    end
     FollowMap()
 
     local border = host:CreateTexture("MidnightMinimapForeverBorder", "OVERLAY", nil, 7)
@@ -298,7 +304,13 @@ local function Init()
     end
     events:SetScript("OnEvent", function(_, event, name)
         if event == "CVAR_UPDATE" then
-            if name == SHOW_COORDS then ApplyCoords() elseif name == BY_TENTHS then UpdateCoords() end
+            if name == SHOW_COORDS then
+                -- A change the player makes supersedes a migration still pending.
+                db.showCoords = nil
+                ApplyCoords()
+            elseif name == BY_TENTHS then
+                UpdateCoords()
+            end
             return
         end
         if event == "UPDATE_PENDING_MAIL" or event == "PLAYER_ENTERING_WORLD" then UpdateMail() end
@@ -328,6 +340,8 @@ local function Init()
                 print("|cffff8800MidnightMinimap|r: Coordinates are Blizzard's setting: Options > Interface > Player Minimap Coordinates.")
                 return
             end
+            -- Here too, in case CVAR_UPDATE doesn't come for our own write.
+            db.showCoords = nil
             ApplyCoords()
             print("|cffff8800MidnightMinimap|r: Coordinates " .. (on and "shown" or "hidden") .. " (Blizzard's Player Minimap Coordinates setting).")
             return
