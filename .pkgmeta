@@ -16,3 +16,4 @@ ignore:
   - dist
   - CHANGELOG.md
   - README.curseforge.md
+  - CLAUDE.md

@@ -1,12 +1,11 @@
 # From the template References\Docs\release\package-check.yml (RELEASING.md §2),
-# with three differences, all because MidnightMinimap ships one TOC for two
-# clients (## Interface: 16001, 20505) and has no Wago project:
+# with these differences, all because MidnightMinimap ships one TOC for two
+# clients (## Interface: 16001, 20505):
 #   - the packager names a two-client zip without a flavor suffix, so the zip
 #     is $ADDON-<tag>.zip, not $ADDON-<tag>-forever.zip;
 #   - tests/release_files.sh also maps 20xxx to the packager's "bcc" flavor;
-#   - no `wago` job and no `publish` input: GitHub is the only target here.
-#     Add the template's `wago` job (and X-Wago-ID, WAGO_API_TOKEN) once a Wago
-#     project exists.
+#   - `wago` maps 20xxx to Wago's TBC patches (`bc`, supported_bc_patches)
+#     next to 16xxx's Forever ones, as the packager's upload_wago does.
 name: Package check
 
 # `check` is a dry run. -d is the real no-upload switch: merely leaving
@@ -15,8 +14,8 @@ name: Package check
 # packager from the tag webhook.
 #
 # On a tag, once `check` has passed, the zip it built and checked is published
-# as is, never rebuilt: `release` makes the GitHub Release (with release.json).
-# The packager stays out of it.
+# twice more, never rebuilt: `release` makes the GitHub Release (with
+# release.json), `wago` uploads to Wago Addons. The packager stays out of both.
 on:
   push:
     branches: [main]
@@ -29,6 +28,11 @@ on:
       tag:
         description: Existing tag to build and publish (e.g. v1.2.0)
         required: true
+      publish:
+        description: Where to publish it
+        type: choice
+        options: [both, github, wago]
+        default: both
 
 permissions:
   contents: read
@@ -52,11 +56,22 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua5.1
 
-      - name: Syntax check
-        run: luac5.1 -p *.lua tests/*.lua
-
-      - name: Forever startup smoke test
-        run: lua5.1 tests/test_forever.lua
+      # Every tests/test_*.lua the checked-out tree has. A manual run checks out
+      # the tag it publishes again, whose tests may be older (v1.1.0 has only
+      # test_forever.lua): those run as they are. Every other run needs the
+      # TOC test too (Codex, #9).
+      - name: Unit tests
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          luac5.1 -p *.lua tests/*.lua
+          if [ "$EVENT" != workflow_dispatch ]; then
+            test -f tests/test_toc.lua || { echo "tests/test_toc.lua is missing"; exit 1; }
+          fi
+          for f in tests/test_*.lua; do
+            echo "-- $f"
+            lua5.1 "$f"
+          done
 
       # On a manual run GITHUB_REF is main, and the packager names the build
       # after whichever tag at HEAD it sorts first (release.sh 613-628 prefers
@@ -147,7 +162,7 @@ jobs:
       # What a tag publishes next to the zip, from the tag's own CHANGELOG.md,
       # built on every run so a changelog heading or TOC field that breaks it
       # fails on the pull request. Off a tag there is no tag section, so it
-      # reads the newest one. `release` publishes these very files.
+      # reads the newest one. `release` and `wago` publish these very files.
       # The script is the workflow's own (GITHUB_SHA), not the checked-out
       # tree's: a manual run checks out the requested tag, and a tag from
       # before the script has none (Codex, NodeRadar #36).
@@ -195,7 +210,7 @@ jobs:
     needs: check
     if: >-
       (github.event_name == 'push' && github.ref_type == 'tag') ||
-      github.event_name == 'workflow_dispatch'
+      (github.event_name == 'workflow_dispatch' && inputs.publish != 'wago')
     runs-on: ubuntu-latest
     concurrency:
       group: release-${{ inputs.tag || github.ref_name }}
@@ -241,7 +256,7 @@ jobs:
       # draft's and stops on a published one), uploads release.json if it's missing, then
       # publishes. A published release.json is never taken away: gh's
       # --clobber deletes the old asset before uploading the new one, so a
-      # retry (a manual run) that failed there would leave a
+      # retry (a manual run defaults to `both`) that failed there would leave a
       # live release without the file WowUp reads (Codex, GlassUI #211). One
       # that matches is kept; one that differs stops the run for a repair by
       # hand. Only a draft's is replaced.
@@ -360,3 +375,87 @@ jobs:
             gh release upload "$TAG" gh/release.json "${repo[@]}"
           fi
           gh release edit "$TAG" "${repo[@]}" --draft=false
+
+  # The same zip on Wago Addons, through its upload API - the request the
+  # packager's upload_wago makes, minus its two problems: it would package a
+  # second, unchecked zip, and send the whole CHANGELOG.md as the changelog.
+  # Only this job sees WAGO_API_TOKEN.
+  wago:
+    needs: check
+    if: >-
+      (github.event_name == 'push' && github.ref_type == 'tag') ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish != 'github')
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      # As in `release`: `check`'s artifacts only, no checkout.
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-files
+          path: out
+
+      - name: The zip and release.json are the tag's
+        run: |
+          zip="dist/$ADDON-$TAG.zip"
+          test -f "$zip" || { echo "no $zip"; exit 1; }
+          jq -e --arg v "$TAG" --arg f "${zip#dist/}" \
+            '.releases[0].version == $v and .releases[0].filename == $f' out/release.json > /dev/null ||
+            { echo "release.json is not $TAG's:"; cat out/release.json; exit 1; }
+          echo "ZIP=$zip" >> "$GITHUB_ENV"
+
+      # The project is the packaged TOC's X-Wago-ID. Each interface becomes the
+      # patch Wago names it by (16001 -> 1.60.1, 20505 -> 2.5.5:
+      # major.minor.patch = i/10000, i/100%100, i%100), under its client's
+      # type: 16xxx is Wago's `forever`, 20xxx its `bc` (the packager's
+      # upload_wago: bcc -> bc), each sent as supported_<type>_patches. Each
+      # patch must be one Wago lists for that type: the packager would fall
+      # back to a neighbouring patch, but a new client build Wago doesn't know
+      # yet should stop here instead. Run the tag again (workflow_dispatch,
+      # wago) once Wago lists it.
+      - name: The Wago upload metadata
+        run: |
+          id=$(unzip -p "$ZIP" "$ADDON/$ADDON.toc" | tr -d '\r' | sed -n 's/^## X-Wago-ID: *//p' | head -1)
+          test -n "$id" || { echo "the packaged TOC has no X-Wago-ID"; exit 1; }
+          echo "WAGO_ID=$id" >> "$GITHUB_ENV"
+          known=$(curl -sS --fail --retry 3 https://addons.wago.io/api/data/game | jq -c '.patches')
+          echo "Wago's patches: $(jq -c '{forever, bc}' <<< "$known")"
+          supported='{}'
+          for i in $(jq -r '.releases[0].metadata[].interface' out/release.json); do
+            case "$i" in
+              16[0-9][0-9][0-9]) type=forever ;;
+              20[0-9][0-9][0-9]) type=bc ;;
+              *) echo "interface $i has no Wago type here"; exit 1 ;;
+            esac
+            p=$(printf '%d.%d.%d' $((i / 10000)) $((i / 100 % 100)) $((i % 100)))
+            jq -e --arg t "$type" --arg p "$p" '(.[$t] // []) | index($p) != null' <<< "$known" > /dev/null ||
+              { echo "Wago lists no $type patch $p (interface $i)"; exit 1; }
+            supported=$(jq -c --arg k "supported_${type}_patches" --arg p "$p" '.[$k] = ((.[$k] // []) + [$p] | unique)' <<< "$supported")
+          done
+          case "${TAG,,}" in *alpha*) stability=alpha ;; *beta*) stability=beta ;; *) stability=stable ;; esac
+          jq -n --arg label "$TAG" --arg stability "$stability" --rawfile changelog out/notes.md \
+            --argjson supported "$supported" \
+            '{label: $label, stability: $stability, changelog: $changelog} + $supported' > out/metadata.json
+          cat out/metadata.json
+
+      - name: Upload to Wago Addons
+        env:
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+        run: |
+          test -n "$WAGO_API_TOKEN" || { echo "the WAGO_API_TOKEN secret is not set"; exit 1; }
+          code=$(curl -sS --retry 3 --retry-delay 10 -o out/result.json -w '%{http_code}' \
+            -H "authorization: Bearer $WAGO_API_TOKEN" \
+            -H 'accept: application/json' \
+            -F 'metadata=<out/metadata.json' \
+            -F "file=@$ZIP" \
+            "https://addons.wago.io/api/projects/$WAGO_ID/version")
+          echo "HTTP $code"
+          case "$code" in
+            200|201) echo "uploaded: https://addons.wago.io/addons/$WAGO_ID" ;;
+            *) cat out/result.json 2>/dev/null; exit 1 ;;
+          esac
