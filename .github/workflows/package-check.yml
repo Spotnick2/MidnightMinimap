@@ -266,14 +266,19 @@ jobs:
           # of its decompressed bytes. Reading every entry also checks it
           # extracts (its CRC included); one that doesn't is a mismatch.
           # Entry timestamps differ between builds of one commit, so the zips'
-          # own bytes are not compared (Codex, #3).
+          # own bytes are not compared (Codex, #3). Each entry must also be
+          # stored or deflated: Python reads LZMA and BZIP2 too, but WowUp's
+          # extractor (yauzl) takes only those two (Codex, wow-dev-tools #69).
           same_zip() {
             python3 - "$1" "$2" <<'PY'
           import hashlib, sys, zipfile
           def entries(path):
               with zipfile.ZipFile(path) as z:
-                  return sorted((i.filename, hashlib.sha256(z.read(i)).hexdigest())
-                                for i in z.infolist() if not i.is_dir())
+                  files = [i for i in z.infolist() if not i.is_dir()]
+                  for i in files:
+                      if i.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+                          raise ValueError(f"{i.filename}: compression method {i.compress_type}, not stored or deflated")
+                  return sorted((i.filename, hashlib.sha256(z.read(i)).hexdigest()) for i in files)
           try:
               same = entries(sys.argv[1]) == entries(sys.argv[2])
           except Exception as e:
